@@ -7,9 +7,9 @@ from optparse import OptionParser
 import random
 import re
 import time
-import cookielib
-import urllib
-import urllib2
+import http.cookiejar
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 import logging
 import os
 import os.path
@@ -95,7 +95,7 @@ class ArrowFetcher:
                       ('&quot;', '"'),
                       ('&#38;quot;', '"'),
                       ('&#39;', "'"),
-                      ('&rsquo;', u'\u2019'),
+                      ('&rsquo;', '\u2019'),
                       ('&mdash;', "--")]
     # TODO: make a better "guess" about the time of the broadcast, account deletion, or Quiver match.
     # Perhaps get the time of the next message/reply (there should be at least one), and set the time based on it.
@@ -115,7 +115,7 @@ class ArrowFetcher:
         return(BeautifulSoup(f, "html.parser"))
 
     def _request_read_sleep(self, url):
-        f = urllib2.urlopen(url).read()
+        f = urllib.request.urlopen(url).read()
         time.sleep(abs(self.sleep_duration + (random.randrange(-100, 100)/100.0)))
         return f
 
@@ -127,7 +127,7 @@ class ArrowFetcher:
                 while (page < 1 if self.debug else True):
                     logging.info("Queuing folder %s, page %s", folder, page)
                     if self.indexfile:
-                        f = urllib2.urlopen('file:'+self.indexfile).read()
+                        f = urllib.request.urlopen('file:'+self.indexfile).read()
                     else:
                         f = self._request_read_sleep(self.secure_base_url + '/messages?folder=' + str(folder) + '&low=' + str((page * 30) + 1))
                     soup = self._safely_soupify(f)
@@ -175,7 +175,7 @@ class ArrowFetcher:
         f = codecs.open(file_name, encoding='utf-8', mode='w')  # ugh, otherwise i think it will try to write ascii
         for message in self.messages:
             logging.debug("Writing message for thread: " + message.thread_url)
-            f.write(unicode(message))
+            f.write(str(message))
         f.close()
 
     def write_directory(self, directory):
@@ -201,7 +201,7 @@ class ArrowFetcher:
             logging.debug("Writing %s" % filename)
             f = codecs.open(filename, encoding='utf-8', mode='w')
             for message in by_other[other]:
-                f.write(unicode(message))
+                f.write(str(message))
             f.close
 
     def _fetch_thread(self, thread_url):
@@ -214,11 +214,11 @@ class ArrowFetcher:
         thread_element = soup.find('ul', {'id': 'thread'})
         try:
             subject = soup.find('strong', {'id': 'message_heading'}).contents[0]
-            subject = unicode(subject)
+            subject = str(subject)
             for find, replace in self.encoding_pairs:
-                subject = subject.replace(unicode(find), unicode(replace))
+                subject = subject.replace(str(find), str(replace))
         except AttributeError:
-            subject = unicode('')
+            subject = str('')
         try:
             other_user = soup.find('input', {'name': 'buddyname'}).get('value')
 
@@ -233,11 +233,11 @@ class ArrowFetcher:
             sender = other_user
             recipient = self.username
             timestamp = self.threadtimes.get(threadnum, self.fallback_date)
-            body = unicode("You like each other!")
+            body = str("You like each other!")
             logging.debug("No message, only mutual match: %s", body)
             message_list.append(Message(self.secure_base_url + thread_url,
-                                        unicode(sender),
-                                        unicode(recipient),
+                                        str(sender),
+                                        str(recipient),
                                         timestamp,
                                         subject,
                                         body,
@@ -256,7 +256,7 @@ class ArrowFetcher:
                     body = self._strip_tags(body_contents.encode_contents().decode('UTF-8')).strip()
                     logging.debug("Message after tag removing: %s", body)
                     for find, replace in self.encoding_pairs:
-                        body = body.replace(unicode(find), unicode(replace))
+                        body = body.replace(str(find), str(replace))
                     logging.debug("Message after HTML entity conversion: %s", body)
                     if message_type in ['broadcast', 'deleted', 'quiver']:
                         timestamp = self.threadtimes.get(threadnum, self.fallback_date)
@@ -278,8 +278,8 @@ class ArrowFetcher:
                         pass
                     logging.debug("Body: %s", body)
                     message_list.append(Message(self.secure_base_url + thread_url,
-                                                unicode(sender),
-                                                unicode(recipient),
+                                                str(sender),
+                                                str(recipient),
                                                 timestamp,
                                                 subject,
                                                 body,
@@ -296,10 +296,10 @@ class ArrowFetcher:
                 s = ""
                 for c in tag.contents:
                     if not isinstance(c, NavigableString):
-                        c = self._strip_tags(unicode(c), invalid_tags)
-                        s += unicode(c).strip()
+                        c = self._strip_tags(str(c), invalid_tags)
+                        s += str(c).strip()
                     else:
-                        s += unicode(c)
+                        s += str(c)
                 tag.replace_with(s)
         return soup.encode_contents().decode('UTF-8')
 
@@ -311,9 +311,9 @@ class OkcupidState:
         self.mbox = mbox
         self.debug = debug
         self.indexfile = indexfile
-        self.cookie_jar = cookielib.CookieJar()
-        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookie_jar))
-        urllib2.install_opener(self.opener)
+        self.cookie_jar = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookie_jar))
+        urllib.request.install_opener(self.opener)
 
     def _setOpenerUrl(self, url, params=None):
         f = self.opener.open(url, params)
@@ -342,7 +342,7 @@ class OkcupidState:
 
     def use_password(self, password):
         logging.debug("Using password.")
-        params = urllib.urlencode(dict(username=self.username, password=password))
+        params = urllib.parse.urlencode(dict(username=self.username, password=password))
         self._setOpenerUrl(ArrowFetcher.secure_base_url + '/login', params)
 
     def use_autologin(self, autologin):
